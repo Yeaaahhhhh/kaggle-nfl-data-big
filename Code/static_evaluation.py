@@ -20,7 +20,7 @@ CopyRight (c) 2024-2025 Xiangtian Dai
 
 Generate a text file that contains initial evaluation for QB pass priority:
 Throw the ball to the left side? right side?
-To whom? RB? WR? TE?
+To whom? RB? WR? TE? FB?
 
 Author: Xiangtian Dai   donktr17@gmail.com
 
