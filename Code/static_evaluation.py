@@ -18,7 +18,7 @@ CopyRight (c) 2024-2025 Xiangtian Dai
     OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-Generate a text file that contains initial evaluation for QB pass priority:
+Generate a json file that contains initial evaluation for QB pass priority:
 Throw the ball to the left side? right side?
 To whom? RB? WR? TE? FB?
 
