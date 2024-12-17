@@ -20,14 +20,13 @@ CopyRight (c) 2024-2025 Xiangtian Dai
 
 Generate a json file that contains initial evaluation for QB pass priority:
 Throw the ball to the left side? right side?
-To whom? RB? WR? TE? FB?
+To whom? RB? WR? TE?
 
 Author: Xiangtian Dai   donktr17@gmail.com
 
 Created: 10th Dec, 2024
 
 '''
-
 
 import pandas as pd
 import numpy as np
@@ -129,6 +128,45 @@ def compute_player_pressure(offensive_player, defensive_players):
     return round(float(pressure_sum), 4)
 
 
+def get_eligible_receivers_side(players_sorted, side, LOS_x):
+    ''' 
+    Determine eligible receivers on a given side based on specified rules.
+    Due to data precision, I have to consider an estimation approach to determine eligible receivers.
+    On the LOS, it's hard to precisely say that a player just leave 0.01 yard away behind the line
+
+    Args:
+        players_sorted: list of player dicts sorted by y-coordinate.
+        side: 'top' or 'bottom'.
+        LOS_x: Line of Scrimmage x-coordinate.
+
+    Return:
+        A set of eligible receivers' nflIds.
+    '''
+    eligible = set()
+
+    if not players_sorted:
+        return eligible
+
+    # Identify outermost player based on side
+    if side == 'top':
+        outermost = players_sorted[-1]
+    else:
+        outermost = players_sorted[0]
+
+    # Rule 1: Check if outermost player is within 1 yard of LOS_x and has eligible position
+    if abs(outermost['x'] - LOS_x) <= 0.75 and outermost['position'] in ['WR', 'TE', 'RB', 'FB']:
+        eligible.add(outermost['nflId'])
+
+    # Rule 2: Any offensive player beyond 1 yard from LOS_x and in [WR, TE, FB, RB] is eligible
+    for player in players_sorted:
+        if abs(player['x'] - LOS_x) > 0.75 and player['position'] in ['WR', 'TE', 'RB', 'FB']:
+            eligible.add(player['nflId'])
+
+    # Rule 3 is implicitly handled by not adding players who don't meet the above criteria
+
+    return eligible
+
+
 def process_tracking_file(file_path, plays_map, players_map, qb_positions):
     """
     Process a single tracking_week file to compute pressures and identify eligible receivers.
@@ -138,21 +176,20 @@ def process_tracking_file(file_path, plays_map, players_map, qb_positions):
     - For each play:
       - Identify offense/defense teams, ball position, QB, etc.
       - Compute influence area for all players
-      - Determine top_area_sum and bottom_area_sum (influence) to decide which side has higher influence for offensive
-      - Based on playDirection:
-        If direction='right', check LOS_x-1 <= x < LOS_x to check eligible receivers (WR,TE,RB,FB)
-        If direction='left', check LOS_x < x <= LOS_x+1 check eligible receivers
-      - Identify eligible receivers using outermost logic, covered up players not eligible
-      - Compute pressures only for eligible WR,TE,RB,FB
+      - Determine eligible receivers based on positions and distance from LOS
+      - Compute pressures only for eligible WR, TE, RB, FB
       - Sort by pressure ascending within each side
       - The side with larger influence sum (area) goes first in the final list, then the other side
       - Final output format: [{"nflId": pressure}, ...]
-
+    
     Args:
-        file_path: prep to get all tracking_week_*.csv file
-        plays_map: for each play, find out possesion team and defensive team
-        players_map: same
-        qb_position: locate quarter back position, his y will divide into to
+        file_path: path to the tracking_week_*.csv file
+        plays_map: dictionary mapping gamePlayId to play info
+        players_map: dictionary mapping nflId to player info
+        qb_positions: set of quarterback nflIds
+
+    Return:
+        A dictionary with gamePlayId as keys and list of {nflId: pressure} dicts as values
     """
     use_cols = ['gameId','playId','nflId','displayName','x','y','s','o','event','club','playDirection']
     dtype_map = {
@@ -177,6 +214,9 @@ def process_tracking_file(file_path, plays_map, players_map, qb_positions):
 
     # Filter ball_snap
     tracking_df = tracking_df[tracking_df['event'] == 'ball_snap']
+
+    if tracking_df.empty:
+        return {}
 
     # Create unique gamePlayId
     tracking_df['gamePlayId'] = tracking_df['gameId'].astype(str) + "_" + tracking_df['playId'].astype(str)
@@ -286,128 +326,54 @@ def process_tracking_file(file_path, plays_map, players_map, qb_positions):
             primary_side = 'bottom'
             secondary_side = 'top'
 
-        # Based on direction, define LOS eligibility range
-        # If direction='right', check [LOS_x-1, LOS_x) for WR,TE,RB
-        # If direction='left', check (LOS_x, LOS_x+1] for WR,TE,RB
-        if play_dir == 'right':
-            def is_in_range(x_coord):
-                return (LOS_x - 1) <= x_coord < LOS_x
-        else:  # play_dir == 'left'
-            def is_in_range(x_coord):
-                return LOS_x < x_coord <= (LOS_x + 1)
+        # Identify eligible receivers based on updated rules
+        # Separate offensive players by side
+        top_side_players = [p for p in offensive_players if p['y'] >= qb_y]
+        bottom_side_players = [p for p in offensive_players if p['y'] < qb_y]
 
-        # Separate by side for WR,TE,RB
-        top_side_players = [p for p in offensive_players if p['y'] >= qb_y and p['position'] in ['WR','TE','RB','FB']]
-        bottom_side_players = [p for p in offensive_players if p['y'] < qb_y and p['position'] in ['WR','TE','RB','FB']]
+        # Sort players by y-coordinate for consistency
+        top_side_sorted = sorted(top_side_players, key=lambda p: p['y'])
+        bottom_side_sorted = sorted(bottom_side_players, key=lambda p: p['y'])
 
-        # Filter players within LOS range based on play direction
-        in_range_top = [p for p in top_side_players if is_in_range(p['x'])]
-        in_range_bottom = [p for p in bottom_side_players if is_in_range(p['x'])]
+        # Determine eligible receivers on each side
+        eligible_top = get_eligible_receivers_side(top_side_sorted, 'top', LOS_x)
+        eligible_bottom = get_eligible_receivers_side(bottom_side_sorted, 'bottom', LOS_x)
 
-        def compute_pressures_for_players(off_players, def_players):
-            '''Compute pressures for offensive players.
+        eligible_receivers_nflIds = eligible_top.union(eligible_bottom)
+
+        # Compute pressures only for eligible receivers
+        def compute_pressures_for_players(off_players, def_players, eligible_ids):
+            '''Compute pressures for eligible offensive players.
 
             Args:
-                off_players: list of all running style players
-                def_players: list of all nearby def players
+                off_players: list of offensive player dicts
+                def_players: list of defensive player dicts
+                eligible_ids: set of eligible receivers' nflIds
 
             Return:
-                pressure list matched with nfl ID
-
+                List of tuples (nflId, pressure)
             '''
             pressures = []
             for op in off_players:
-                if op['position'] in ['WR', 'TE', 'RB','FB']:
+                if op['nflId'] in eligible_ids and op['position'] in ['WR', 'TE', 'RB', 'FB']:
                     pressure_val = compute_player_pressure(op, def_players)
                     pressures.append((op['nflId'], pressure_val))
             return pressures
 
-        # If no WR, TE, RB in LOS range on either side, no eligibility filtering
-        if not in_range_top and not in_range_bottom:
-            # Just compute pressures normally
-            off_pressures = compute_pressures_for_players(offensive_players, defensive_players_info)
+        off_pressures = compute_pressures_for_players(offensive_players, defensive_players_info, eligible_receivers_nflIds)
 
-            # separate by side
-            top_ids = {p['nflId'] for p in top_side_players}
-            bottom_ids = {p['nflId'] for p in bottom_side_players}
-
-            # sort each side by pressure ascending
-            top_side_pressures = [(nid, val) for (nid, val) in off_pressures if nid in top_ids]
-            bottom_side_pressures = [(nid, val) for (nid, val) in off_pressures if nid in bottom_ids]
-
-            top_side_pressures.sort(key=lambda x: x[1])
-            bottom_side_pressures.sort(key=lambda x: x[1])
-
-            # According to influence, primary_side first
-            if primary_side == 'top':
-                combined = top_side_pressures + bottom_side_pressures
-            else:
-                combined = bottom_side_pressures + top_side_pressures
-
-            # Create list of dicts {nflId: pressure}
-            final_pressures = [{str(nid): val} for (nid, val) in combined]
-            final_results[gamePlayId] = final_pressures
-            continue
-
-        # If we have in-range players, determine eligibility
-        def get_eligible_receivers_side(players_in_range_sorted, side='top'):
-
-            ''' 
-            This function will find out on each side who are the eligible receivers based on the rules
-
-            Args:
-                players_in_range_sorted: for those who are far far away from LOS (line of scrimmage)
-                side: top, on the top side of QB
-            
-            Return:
-                eligible: a list that contains all eligible receivers.
-
-            '''
-            eligible = []
-            if not players_in_range_sorted:
-                return eligible
-            if side == 'top':
-                outermost = players_in_range_sorted[-1]
-            else:
-                outermost = players_in_range_sorted[0]
-
-            eligible.append(outermost['nflId'])
-            outer_diff = abs(outermost['x'] - LOS_x)
-            for player in players_in_range_sorted:
-                if player['nflId'] == outermost['nflId']:
-                    continue
-                player_diff = abs(player['x'] - LOS_x)
-                if player_diff < outer_diff:
-                    # Closer to LOS_x => not eligible
-                    continue
-                else:
-                    eligible.append(player['nflId'])
-            return eligible
-
-        # Sort players by y coordinate to find out each side players
-        in_range_top_sorted = sorted(in_range_top, key=lambda p: p['y'])
-        in_range_bottom_sorted = sorted(in_range_bottom, key=lambda p: p['y'])
-
-        eligible_top = get_eligible_receivers_side(in_range_top_sorted, side='top')
-        eligible_bottom = get_eligible_receivers_side(in_range_bottom_sorted, side='bottom')
-
-        eligible_receivers_nflIds = set(eligible_top + eligible_bottom)
-
-        # Compute pressures for all WR, TE, RB, FB
-        off_pressures = compute_pressures_for_players(offensive_players, defensive_players_info)
-
-        # Separate pressures by side and filter eligible
+        # Separate pressures by side
         top_ids = {p['nflId'] for p in top_side_players}
         bottom_ids = {p['nflId'] for p in bottom_side_players}
 
-        top_eligible_pressures = [(nid, val) for (nid, val) in off_pressures if nid in top_ids and nid in eligible_receivers_nflIds]
-        bottom_eligible_pressures = [(nid, val) for (nid, val) in off_pressures if nid in bottom_ids and nid in eligible_receivers_nflIds]
+        top_eligible_pressures = [(nid, val) for (nid, val) in off_pressures if nid in top_ids]
+        bottom_eligible_pressures = [(nid, val) for (nid, val) in off_pressures if nid in bottom_ids]
 
         # Sort each side by pressure ascending
         top_eligible_pressures.sort(key=lambda x: x[1])
         bottom_eligible_pressures.sort(key=lambda x: x[1])
 
-        # Combine according to which side has bigger influence (primary_side)
+        # According to influence, primary_side first
         if primary_side == 'top':
             combined = top_eligible_pressures + bottom_eligible_pressures
         else:
@@ -422,14 +388,23 @@ def process_tracking_file(file_path, plays_map, players_map, qb_positions):
 
 def main():
     # Read plays and players data
-    plays_df = pd.read_csv('plays.csv', dtype={
-        'gameId': 'int32',
-        'playId': 'int32',
-        'possessionTeam': 'object',
-        'defensiveTeam': 'object',
-        'yardlineNumber': 'int32'
-    })
-    players_df = pd.read_csv('players.csv', dtype={'nflId': 'int32', 'position': 'object'})
+    try:
+        plays_df = pd.read_csv('plays.csv', dtype={
+            'gameId': 'int32',
+            'playId': 'int32',
+            'possessionTeam': 'object',
+            'defensiveTeam': 'object',
+            'yardlineNumber': 'int32'
+        })
+    except Exception as e:
+        print(f"Error reading plays.csv: {e}")
+        return
+
+    try:
+        players_df = pd.read_csv('players.csv', dtype={'nflId': 'int32', 'position': 'object'})
+    except Exception as e:
+        print(f"Error reading players.csv: {e}")
+        return
 
     # Create plays_map with necessary fields: possessionTeam, defensiveTeam, yardlineNumber
     plays_key = plays_df.apply(lambda row: f"{row['gameId']}_{row['playId']}", axis=1)
@@ -473,6 +448,7 @@ def main():
 
     # Merge all partial results into a single dictionary
     final_dict = {}
+    print('Be ready to merge into final_dict')
     for partial_dict in results:
         if not isinstance(partial_dict, dict):
             print(f"Warning: Partial result is not a dict: {partial_dict}")
@@ -483,6 +459,7 @@ def main():
             final_dict[k] = v
 
     # Serialize the final dictionary using orjson for faster performance
+    print('Be ready to export to json')
     try:
         with open('static_eval.json', 'wb') as f:
             f.write(orjson.dumps(final_dict, option=orjson.OPT_INDENT_2))
