@@ -18,7 +18,7 @@ CopyRight (c) 2024-2025 Xiangtian Dai
     OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-Generate a json file that ESTIMATE players fatigue in current play
+Generate a json file for final test: the most possible receiver after the snap (n.n seconds)
 
 Author: Xiangtian Dai   donktr17@gmail.com
 
@@ -123,7 +123,7 @@ def merge_dicts(dict_list):
     Return.
         dict: The merged dictionary
     """
-    
+
     merged = {}
     for d in dict_list:
         if not isinstance(d, dict):
