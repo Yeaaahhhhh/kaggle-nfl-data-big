@@ -1,3 +1,32 @@
+'''
+The MIT License (MIT)
+
+CopyRight (c) 2024-2025 Xiangtian Dai
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy of this software 
+    and associated documentation files (the "Software"), to deal in the Software without restriction, 
+    including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+    and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, 
+    subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all copies or substantial 
+    portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,  OR IMPLIED, 
+    INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND 
+    NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES 
+    OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Generate a json file that ESTIMATE players fatigue in current play
+
+Author: Xiangtian Dai   donktr17@gmail.com
+
+Created: 10th Dec, 2024
+
+'''
+
+
 import pandas as pd
 import glob
 import orjson
@@ -5,13 +34,14 @@ from multiprocessing import Pool, cpu_count
 from functools import partial
 import os
 
+
 def process_one_tracking_file(tracking_file, player_play_df):
     """
-    处理单个tracking_week文件，提取游戏中snap_time_elapse与对应的nflId信息。
+    Process a single tracking_week file to extract the snap_time_elapse in game with the corresponding nflId information.
 
-    Args:
-        tracking_file (str): tracking_week文件的路径
-        player_play_df (pd.DataFrame): player_play.csv的完整数据
+    Args.
+        tracking_file (str): path to tracking_week file
+        player_play_df (pd.DataFrame): full data of player_play.csv
 
     Return:
         dict: { "gameId_playId": { snap_time_elapse: nflId } }
@@ -31,50 +61,50 @@ def process_one_tracking_file(tracking_file, player_play_df):
         print(f"Error reading {tracking_file}: {e}")
         return {}
 
-    # 按 gameId, playId 分组
+    # group by gameId, playId
     final_dict = {}
 
     for (gameId, playId), group in df.groupby(['gameId','playId']):
-        # 查看本回合是否有pass_forward或handoff事件
+        # See if there are pass_forward or handoff events in this round
         target_events = group[group['event'].isin(['pass_forward', 'handoff'])]
         ball_snap = group[group['event'] == 'ball_snap']
 
         if ball_snap.empty or target_events.empty:
-            # 没有pass_forward或handoff事件,或者没有ball_snap，无法计算snap_time_elapse
+            # No pass_forward or handoff events, or no ball_snap to calculate snap_time_elapse
             continue
 
-        # 假设一个play中只能有一个snap对应的事件计算
+        # Assuming that there can only be one snap corresponding to the event computation in a play
         snap_frame = ball_snap['frameId'].values[0]
-        # 选取第一个pass_forward或handoff事件
+        # Select the first pass_forward or handoff event
         target_frame = target_events['frameId'].iloc[0]
 
         snap_time_elapse = frame_gap * (target_frame - snap_frame)
-        # 保留一位小数
+        # keep 1 decimal
         snap_time_elapse = round(snap_time_elapse, 1)
 
-        # 在player_play.csv中找到对应行
+        # Find the corresponding line in player_play.csv
         ppdf = player_play_df[(player_play_df['gameId']==gameId) & (player_play_df['playId']==playId)]
 
         if ppdf.empty:
-            # 未在player_play找到对应数据，跳过
+            # No data found in player_play, skip.
             continue
 
-        # 根据wasTargettedReceiver判断
+        # Judging by wasTargettedReceiver
         receiver_info = ppdf[ppdf['wasTargettedReceiver'] == 1]
         if receiver_info.empty:
-            # 如果没有被标记为wasTargettedReceiver的接球手，则看hadRushAttempt
+            # If there are no receivers marked as wasTargettedReceiver, look at hadRushAttempt
             rush_info = ppdf[ppdf['hadRushAttempt'] == 1]
             if rush_info.empty:
-                # 没有标记为rush的球员，也没有目标接球手
+                # No players marked as RUSH and no target receivers
                 continue
             else:
-                # 使用rush_info的nflId
+                # nflId using rush_info
                 nflId = rush_info['nflId'].iloc[0]
         else:
-            # 使用receiver_info的nflId
+            # use receiver's nflId
             nflId = receiver_info['nflId'].iloc[0]
 
-        # 将结果写入final_dict
+        # write in dict
         key = f"{gameId}_{playId}"
         if key not in final_dict:
             final_dict[key] = {}
@@ -82,31 +112,35 @@ def process_one_tracking_file(tracking_file, player_play_df):
 
     return final_dict
 
+
 def merge_dicts(dict_list):
     """
-    合并多个字典为一个字典。
+    Merge multiple dictionaries into one.
 
-    Args:
-        dict_list (list): 字典列表
+    Args.
+        dict_list (list): list of dictionaries
 
-    Return:
-        dict: 合并后的字典
+    Return.
+        dict: The merged dictionary
     """
+    
     merged = {}
     for d in dict_list:
         if not isinstance(d, dict):
             continue
         for k, v in d.items():
             if k in merged:
-                # 如果同一个key重复出现，根据需求可以决定是否覆盖或者合并
-                # 此处简单覆盖
+                # If the same key is repeated, it can be overwritten or merged depending on the requirements
+                # Simple override here
                 merged[k].update(v)
             else:
                 merged[k] = v
     return merged
 
+
 def main():
-    # 假设 player_play.csv 和 tracking_week_*.csv 文件在当前目录下
+
+    # Assuming that the player_play.csv and tracking_week_*.csv files are in the current directory
     player_play_path = 'player_play.csv'
     tracking_pattern = 'tracking_week_*.csv'
 
@@ -122,7 +156,7 @@ def main():
         print(f"No files found for pattern '{tracking_pattern}'")
         return
     
-    # 使用多进程处理
+    # use multiprocess
     num_processes = min(cpu_count(), len(tracking_files))
     pool = Pool(processes=num_processes)
 
@@ -141,17 +175,9 @@ def main():
 
     final_dict = merge_dicts(results)
 
-    # 使用orjson输出json文件
-    # 要求格式工整，且有换行与缩进
-    # orjson默认不支持直接格式化缩进输出，但可以用option=orjson.OPT_INDENT_2
-    # 注意：使用option=orjson.OPT_INDENT_2会产生类似：
-    # {
-    #   "key": {
-    #     "subkey": value
-    #   }
-    # }
-    # 的格式
-
+    # Output json file using orjson
+    # Require neat formatting with line breaks and indentation
+    
     json_bytes = orjson.dumps(final_dict, option=orjson.OPT_INDENT_2)
 
     output_path = os.path.join(os.getcwd(), 'snap_elapse_receiver.json')
@@ -159,6 +185,7 @@ def main():
         f.write(json_bytes)
 
     print("snap_elapse_receiver.json has been generated.")
+
 
 if __name__ == "__main__":
     main()
