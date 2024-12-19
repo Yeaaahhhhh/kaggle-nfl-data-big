@@ -46,6 +46,7 @@ def process_one_tracking_file(tracking_file, player_play_df):
     Return:
         dict: { "gameId_playId": { snap_time_elapse: nflId } }
     """
+    
     usecols = ['gameId','playId','frameId','nflId','event']
     dtype_map = {
         'gameId': 'int32',

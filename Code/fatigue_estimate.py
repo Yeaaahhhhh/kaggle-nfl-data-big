@@ -27,11 +27,6 @@ Created: 10th Dec, 2024
 '''
 
 
-
-
-
-
-
 import csv
 import json
 from collections import defaultdict, OrderedDict
@@ -41,6 +36,7 @@ import glob
 from multiprocessing import Pool, cpu_count
 from functools import partial
 import orjson
+
 
 def load_player_play_data(player_play_file):
     """
@@ -52,6 +48,7 @@ def load_player_play_data(player_play_file):
     Returns:
         defaultdict: A dictionary mapping (gameId, playId) to a list of (nflId, teamAbbr).
     """
+
     player_data = defaultdict(list)
     with open(player_play_file, 'r', encoding='utf-8-sig') as f:
         reader = csv.DictReader(f)
@@ -63,6 +60,7 @@ def load_player_play_data(player_play_file):
             player_data[(gameId, playId)].append((nflId, teamAbbr))
     return player_data
 
+
 def load_plays_data(plays_file):
     """
     Load plays data.
@@ -73,6 +71,7 @@ def load_plays_data(plays_file):
     Returns:
         dict: A dictionary mapping (gameId, playId) to (possessionTeam, defensiveTeam).
     """
+
     plays_info = {}
     with open(plays_file, 'r', encoding='utf-8-sig') as f:
         reader = csv.DictReader(f)
@@ -83,6 +82,7 @@ def load_plays_data(plays_file):
             defensiveTeam = row['defensiveTeam']
             plays_info[(gameId, playId)] = (possessionTeam, defensiveTeam)
     return plays_info
+
 
 def calculate_continuity(player_data, plays_info):
     """
@@ -95,6 +95,7 @@ def calculate_continuity(player_data, plays_info):
     Returns:
         OrderedDict: A dictionary mapping "gameId_playId" to a dictionary of {nflId: continuity_count}.
     """
+
     game_plays = defaultdict(list)
     for (gameId, playId) in plays_info.keys():
         game_plays[gameId].append(playId)
@@ -132,6 +133,7 @@ def calculate_continuity(player_data, plays_info):
 
     return final_result
 
+
 def process_tracking_file(tracking_file):
     """
     Process a single tracking_week_*.csv file.
@@ -142,7 +144,9 @@ def process_tracking_file(tracking_file):
     Returns:
         dict: Partial tracking data from the file.
     """
+
     tracking_data = defaultdict(list)
+
     with open(tracking_file, 'r', encoding='utf-8-sig') as f:
         reader = csv.DictReader(f)
         for row in reader:
@@ -158,7 +162,9 @@ def process_tracking_file(tracking_file):
                 # If x, y, s cannot be converted to float, skip the row
                 continue
             tracking_data[(gameId, playId, nflId)].append((event, x, y, s))
+
     return tracking_data
+
 
 def load_tracking_data(tracking_files):
     """
@@ -170,13 +176,16 @@ def load_tracking_data(tracking_files):
     Returns:
         defaultdict: A dictionary mapping (gameId, playId, nflId) to a list of (event, x, y, s).
     """
+
     tracking_data = defaultdict(list)
+
     with Pool(processes=cpu_count()) as pool:
         results = pool.map(process_tracking_file, tracking_files)
     for partial_data in results:
         for key, value in partial_data.items():
             tracking_data[key].extend(value)
     return tracking_data
+
 
 def compute_play_stats_single(key_data):
     """
@@ -188,6 +197,7 @@ def compute_play_stats_single(key_data):
     Returns:
         tuple: (key, {"distance": dist, "max_speed": max_s})
     """
+
     key, data_points = key_data
     # Find the index of the ball_snap event
     snap_index = next((i for i, (event, x, y, s) in enumerate(data_points) if event == "ball_snap"), None)
@@ -211,6 +221,7 @@ def compute_play_stats_single(key_data):
 
     return (key, {"distance": dist, "max_speed": max_s})
 
+
 def compute_play_stats(tracking_data):
     """
     Compute running distance and maximum speed for each (gameId, playId, nflId).
@@ -221,11 +232,13 @@ def compute_play_stats(tracking_data):
     Returns:
         dict: A dictionary mapping (gameId, playId, nflId) to {"distance": dist, "max_speed": max_s}.
     """
+
     play_stats = {}
     with Pool(processes=cpu_count()) as pool:
         results = pool.map(compute_play_stats_single, tracking_data.items())
     play_stats = dict(results)
     return play_stats
+
 
 def build_player_play_index(continuity_dict):
     """
@@ -237,6 +250,7 @@ def build_player_play_index(continuity_dict):
     Returns:
         defaultdict: A dictionary mapping (gameId, nflId) to a list of (playId, continuity_count) sorted by playId.
     """
+
     player_game_plays = defaultdict(list)
     # Decompose gameId_playId into (gameId, playId)
     # Group by gameId and sort playId
@@ -258,6 +272,7 @@ def build_player_play_index(continuity_dict):
 
     return player_game_plays
 
+
 def compute_fatigue_factors_single(gp_str, player_dict, player_game_plays, play_stats):
     """
     Compute V_fatigue for a single "gameId_playId".
@@ -271,6 +286,7 @@ def compute_fatigue_factors_single(gp_str, player_dict, player_game_plays, play_
     Returns:
         tuple: (gp_str, {nflId: V_fatigue, ...})
     """
+
     gameId, playId = gp_str.split("_")
     current_results = {}
     for nflId, N in player_dict.items():
@@ -315,6 +331,7 @@ def compute_fatigue_factors_single(gp_str, player_dict, player_game_plays, play_
 
     return (gp_str, current_results)
 
+
 def compute_fatigue_factors(continuity_dict, play_stats):
     """
     Calculate V_fatigue based on continuity information and play statistics.
@@ -335,6 +352,7 @@ def compute_fatigue_factors(continuity_dict, play_stats):
     Returns:
         OrderedDict: A dictionary mapping "gameId_playId" to {nflId: V_fatigue, ...}.
     """
+
     result = OrderedDict()
     player_game_plays = build_player_play_index(continuity_dict)
 
@@ -363,6 +381,7 @@ def main():
     5. Calculate V_fatigue factors based on continuity and play stats.
     6. Output the results to a JSON file.
     """
+
     player_play_file = "player_play.csv"
     plays_file = "plays.csv"
     tracking_pattern = "tracking_week_*.csv"
@@ -394,6 +413,7 @@ def main():
         f.write(orjson.dumps(fatigue_dict, option=orjson.OPT_INDENT_2 | orjson.OPT_NON_STR_KEYS))
 
     print("velocity_fatigue.json has been generated.")
+
 
 if __name__ == "__main__":
     main()

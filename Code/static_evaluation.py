@@ -20,7 +20,7 @@ CopyRight (c) 2024-2025 Xiangtian Dai
 
 Generate a json file that contains initial evaluation for QB pass priority:
 Throw the ball to the left side? right side?
-To whom? RB? WR? TE?
+To whom? RB? WR? TE? FB?
 
 Author: Xiangtian Dai   donktr17@gmail.com
 
@@ -50,6 +50,7 @@ def angle_to_radians_for_influence(o_deg):
     Return: 
         Corrected angle in radians as defined.
     '''
+
     return (pi / 2) - radians(o_deg)
 
 
@@ -63,6 +64,7 @@ def normalize_angle(angle):
     Return: 
         angle, corrected version in [-pi, pi]
     '''
+
     return (angle + pi) % (2 * pi) - pi
 
 
@@ -77,6 +79,7 @@ def get_zone_pressure(distance, zone_radius):
     Return: 
         pressure as a float
     '''
+
     if distance > zone_radius:
         return 0.0
     return 1 - distance / zone_radius
@@ -100,6 +103,7 @@ def compute_player_pressure(offensive_player, defensive_players):
     Return: 
         Rounded float pressure (4 decimals)
     """
+
     px, py = offensive_player['x'], offensive_player['y']
     theta = offensive_player['theta']
 
@@ -142,6 +146,7 @@ def get_eligible_receivers_side(players_sorted, side, LOS_x):
     Return:
         A set of eligible receivers' nflIds.
     '''
+
     eligible = set()
 
     if not players_sorted:
@@ -191,6 +196,7 @@ def process_tracking_file(file_path, plays_map, players_map, qb_positions):
     Return:
         A dictionary with gamePlayId as keys and list of {nflId: pressure} dicts as values
     """
+
     use_cols = ['gameId','playId','nflId','displayName','x','y','s','o','event','club','playDirection']
     dtype_map = {
         'gameId': 'int32',
@@ -353,6 +359,7 @@ def process_tracking_file(file_path, plays_map, players_map, qb_positions):
             Return:
                 List of tuples (nflId, pressure)
             '''
+            
             pressures = []
             for op in off_players:
                 if op['nflId'] in eligible_ids and op['position'] in ['WR', 'TE', 'RB', 'FB']:
