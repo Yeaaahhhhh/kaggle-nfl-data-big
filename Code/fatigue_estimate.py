@@ -58,6 +58,7 @@ def load_player_play_data(player_play_file):
             nflId = row['nflId']
             teamAbbr = row['teamAbbr']
             player_data[(gameId, playId)].append((nflId, teamAbbr))
+            
     return player_data
 
 
@@ -81,6 +82,7 @@ def load_plays_data(plays_file):
             possessionTeam = row['possessionTeam']
             defensiveTeam = row['defensiveTeam']
             plays_info[(gameId, playId)] = (possessionTeam, defensiveTeam)
+
     return plays_info
 
 
@@ -184,6 +186,7 @@ def load_tracking_data(tracking_files):
     for partial_data in results:
         for key, value in partial_data.items():
             tracking_data[key].extend(value)
+
     return tracking_data
 
 
@@ -237,6 +240,7 @@ def compute_play_stats(tracking_data):
     with Pool(processes=cpu_count()) as pool:
         results = pool.map(compute_play_stats_single, tracking_data.items())
     play_stats = dict(results)
+
     return play_stats
 
 
