@@ -1062,8 +1062,12 @@ class MultiPlayerWaveSimulator:
         """
 
         n = len(self.players_data)
+
+        
         def is_OL(pos):
             return (pos in ["C","G","T"])
+
+
         def is_DL(pos):
             return (pos in ["NT","DT","DE"])
 
@@ -1175,6 +1179,7 @@ class MultiPlayerWaveSimulator:
 
                 # Note: In the demonstration, collisions are handled in one frame. If you want to "handle by nearest distance first", you can first collect collision pairs, sort them, and then execute the logic.
 
+
     def calculate_redness(self):
         """
         Optimized redness calculation using vectorized operations
@@ -1214,6 +1219,7 @@ class MultiPlayerWaveSimulator:
             # Use numpy sum for faster calculation
             redness = np.sum(exclusive_mask) - np.sum(overlapping_defense)
             self.redness_result[nflId].append(float(redness))
+
 
 def run_wave_simulation_for_play(
     game_id: str,
