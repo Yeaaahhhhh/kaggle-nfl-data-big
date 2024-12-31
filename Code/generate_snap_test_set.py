@@ -19,6 +19,7 @@ CopyRight (c) 2024-2025 Xiangtian Dai
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 Generate a json file for final test: the most possible receiver after the snap (n.n seconds)
+Note that n.n moment means, at this time (n.n) the Quarterback threw the ball to the target receiver
 
 Author: Xiangtian Dai   donktr17@gmail.com
 
