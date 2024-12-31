@@ -373,6 +373,7 @@ def compute_fatigue_factors(continuity_dict, play_stats):
 
     return result
 
+
 def main():
     """
     Main function to orchestrate data loading, processing, and output generation.
