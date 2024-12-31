@@ -59,7 +59,7 @@ def read_data():
         tuple: Contains (tracking_df, players_df, plays_df, velocity_fatigue_dict, static_eval_dict)
         for use in simulation setup
     """
-    
+
     tracking_df = pd.read_csv("tracking_week_1.csv", dtype={"gameId": str, "playId": str, "nflId": str})
     players_df  = pd.read_csv("players.csv",         dtype={"nflId": str})
     plays_df    = pd.read_csv("plays.csv",           dtype={"gameId": str, "playId": str})
@@ -1186,7 +1186,12 @@ class MultiPlayerWaveSimulator:
     def calculate_redness(self):
         """
         Optimized redness calculation using vectorized operations
+        Most steps have been done in wave_model.py
+        here we just consider how to eliminate duplicated area of same team members
+        and minus the rivals area
+
         """
+        
         # Convert player data to numpy arrays for faster computation
         offensive_players = [p for p in self.players_data if p["side"] == "offense"]
         defensive_players = [p for p in self.players_data if p["side"] == "defense"]
