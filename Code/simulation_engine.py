@@ -28,7 +28,6 @@ Created: 10th Dec, 2024
 '''
 
 
-# simulation_engine.py
 import os
 import json
 import numpy as np
@@ -1191,7 +1190,7 @@ class MultiPlayerWaveSimulator:
         and minus the rivals area
 
         """
-        
+
         # Convert player data to numpy arrays for faster computation
         offensive_players = [p for p in self.players_data if p["side"] == "offense"]
         defensive_players = [p for p in self.players_data if p["side"] == "defense"]
