@@ -59,6 +59,7 @@ def read_data():
         tuple: Contains (tracking_df, players_df, plays_df, velocity_fatigue_dict, static_eval_dict)
         for use in simulation setup
     """
+    
     tracking_df = pd.read_csv("tracking_week_1.csv", dtype={"gameId": str, "playId": str, "nflId": str})
     players_df  = pd.read_csv("players.csv",         dtype={"nflId": str})
     plays_df    = pd.read_csv("plays.csv",           dtype={"gameId": str, "playId": str})
@@ -86,6 +87,7 @@ def get_ball_snap_info(tracking_df, game_id, play_id):
     Returns:
         pd.DataFrame: Contains [nflId, x, y, o, gameId, playId, event] for all players at snap
     """
+
     subset = tracking_df[
         (tracking_df["gameId"] == game_id) &
         (tracking_df["playId"] == play_id) &
@@ -106,6 +108,7 @@ def merge_position_info(ball_snap_df, players_df):
     Returns:
         pd.DataFrame: Combined DataFrame with player positions and attributes
     """
+
     merged_df = pd.merge(
         ball_snap_df,
         players_df[["nflId", "position", "displayName"]],
@@ -1063,7 +1066,7 @@ class MultiPlayerWaveSimulator:
 
         n = len(self.players_data)
 
-        
+
         def is_OL(pos):
             return (pos in ["C","G","T"])
 
